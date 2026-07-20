@@ -39,7 +39,7 @@ if st.session_state.zonas:
   st.sidebar.success(
       f"✅ `zonas.json` cargado con {len(st.session_state.zonas)} zonas."
   )
-  # Botón de descarga movido al menú lateral
+  # Botón de descarga
   json_data = json.dumps(st.session_state.zonas, indent=2)
   st.sidebar.download_button(
       label="💾 Descargar zonas.json actual",
@@ -56,7 +56,6 @@ st.sidebar.divider()
 modo = st.sidebar.radio(
     "Modo de Trabajo:", ["Visor / Monitoreo", "Mapeador / Crear Zonas"]
 )
-
 
 # --- VISOR INTERACTIVO "TODO EN UNO" (HTML5/JS NATIVO) ---
 def mostrar_visor_vectorial(img_bgr, lista_zonas, mostrar_selector=True, height=650):
@@ -199,17 +198,17 @@ def mostrar_visor_vectorial(img_bgr, lista_zonas, mostrar_selector=True, height=
                 }}
             }}
 
-            // Variables de Datos y Estado
+            // Variables de Datos y Estado (Corrección aplicada aquí)
             var todasLasZonas = {zonas_json_str};
-            var mostrarSelector = {'true' if mostrar_selector else 'false'} === 'true';
+            var mostrarSelector = {'true' if mostrar_selector else 'false'};
             var zonaActual = null;
 
-            // Configurar modo Mapeador (Muestra la última zona creada automáticamente)
+            // Configurar modo Mapeador
             if (!mostrarSelector && todasLasZonas.length > 0) {{
-                zonaActual = todasLasZonas[0]; 
+                zonaActual = todasLasZonas[todasLasZonas.length - 1]; 
             }}
 
-            // Poblar el Selector de Zonas (Modo Visor)
+            // Poblar el Selector de Zonas (Modo Visor) - ¡Esto ahora funcionará!
             var zoneSelect = document.getElementById('zoneSelect');
             if (mostrarSelector && zoneSelect) {{
                 todasLasZonas.forEach(function(z) {{
@@ -344,9 +343,9 @@ def mostrar_visor_vectorial(img_bgr, lista_zonas, mostrar_selector=True, height=
 
                 // Restaurar posición si venimos de un reload de Python
                 var storage = window.parent.localStorage;
-                var savedZoom = storage.getItem('scada_zoom_v5');
-                var savedX = storage.getItem('scada_x_v5');
-                var savedY = storage.getItem('scada_y_v5');
+                var savedZoom = storage.getItem('scada_zoom_v6');
+                var savedX = storage.getItem('scada_x_v6');
+                var savedY = storage.getItem('scada_y_v6');
 
                 if (savedZoom && savedX && savedY) {{
                     viewer.viewport.zoomTo(parseFloat(savedZoom), null, true);
@@ -357,10 +356,10 @@ def mostrar_visor_vectorial(img_bgr, lista_zonas, mostrar_selector=True, height=
             function guardarPosicion() {{
                 if (viewer && viewer.viewport) {{
                     var storage = window.parent.localStorage;
-                    storage.setItem('scada_zoom_v5', viewer.viewport.getZoom());
+                    storage.setItem('scada_zoom_v6', viewer.viewport.getZoom());
                     var center = viewer.viewport.getCenter();
-                    storage.setItem('scada_x_v5', center.x);
-                    storage.setItem('scada_y_v5', center.y);
+                    storage.setItem('scada_x_v6', center.x);
+                    storage.setItem('scada_y_v6', center.y);
                 }}
             }}
 
@@ -381,7 +380,6 @@ if uploaded_image is not None:
   # MODO 1: VISOR / MONITOREO HD
   # ----------------------------------------------------
   if modo == "Visor / Monitoreo":
-      # Ya no necesitamos columnas, la imagen ocupa el 100% del ancho
       mostrar_visor_vectorial(img_original, st.session_state.zonas, mostrar_selector=True, height=720)
 
   # ----------------------------------------------------
@@ -439,7 +437,6 @@ if uploaded_image is not None:
           st.error("Por favor ingrese un ID válido.")
 
     with col_preview:
-      # En Mapeador, solo mostramos la última zona creada y ocultamos el selector
       zona_preview = [st.session_state.zonas[-1]] if st.session_state.zonas else []
       mostrar_visor_vectorial(img_original, zona_preview, mostrar_selector=False, height=500)
 
