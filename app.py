@@ -12,7 +12,7 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("🚊 Monitoreo de Zonas")
+st.title("🚊 Monitoreo de Zonas - 71914122")
 
 # --- CARGA AUTOMÁTICA DEL ARCHIVO JSON DESDE GITHUB ---
 JSON_LOCAL = "zonas.json"
