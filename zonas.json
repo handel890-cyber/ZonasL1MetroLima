@@ -171,6 +171,107 @@
   },
 
 {
+    "id": "215",
+    "lineas": [
+      {
+        "x_inicio": 2691,
+        "y_inicio": 550,
+        "x_fin": 3840,
+        "y_fin": 550
+      },
+      {
+        "x_inicio": 0,
+        "y_inicio": 794,
+        "x_fin": 181,
+        "y_fin": 794
+      }
+    ],
+    "corchete_izq": {
+      "x": 2691,
+      "y1": 560,
+      "y2": 540
+    },
+    "corchete_der": {
+      "x": 181,
+      "y1": 804,
+      "y2": 784
+    }
+  },
+
+{
+    "id": "216",
+    "lineas": [
+      {
+        "x_inicio": 2633,
+        "y_inicio": 503,
+        "x_fin": 3840,
+        "y_fin": 503
+      },
+      {
+        "x_inicio": 0,
+        "y_inicio": 747,
+        "x_fin": 92,
+        "y_fin": 747
+      }
+    ],
+    "corchete_izq": {
+      "x": 2633,
+      "y1": 513,
+      "y2": 493
+    },
+    "corchete_der": {
+      "x": 92,
+      "y1": 757,
+      "y2": 737
+    }
+  },
+
+
+{
+    "id": "217",
+    "lineas": [
+      {
+        "x_inicio": 181,
+        "y_inicio": 794,
+        "x_fin": 1403,
+        "y_fin": 794
+      }
+    ],
+    "corchete_izq": {
+      "x": 181,
+      "y1": 804,
+      "y2": 784
+    },
+    "corchete_der": {
+      "x": 1403,
+      "y1": 804,
+      "y2": 784
+    }
+  },
+{
+    "id": "218",
+    "lineas": [
+      {
+        "x_inicio": 92,
+        "y_inicio": 747,
+        "x_fin": 1333,
+        "y_fin": 747
+      }
+    ],
+    "corchete_izq": {
+      "x": 92,
+      "y1": 757,
+      "y2": 737
+    },
+    "corchete_der": {
+      "x": 1333,
+      "y1": 757,
+      "y2": 737
+    }
+  },
+
+
+{
     "id": "219",
     "lineas": [
       {
