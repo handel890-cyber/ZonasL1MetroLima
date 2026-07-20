@@ -2,6 +2,7 @@ import json
 import os
 import cv2
 import numpy as np
+from PIL import Image
 import streamlit as st
 from streamlit_image_zoom import image_zoom
 
@@ -107,24 +108,13 @@ uploaded_image = st.sidebar.file_uploader(
     "1. Subir Imagen SCADA", type=["jpg", "png", "jpeg"]
 )
 
-# Estado del JSON
+# Estado del JSON de GitHub
 if st.session_state.zonas:
   st.sidebar.success(
       f"✅ `zonas.json` cargado con {len(st.session_state.zonas)} zonas."
   )
 else:
   st.sidebar.info("ℹ️ No se detectó `zonas.json` en GitHub.")
-
-# Cargar JSON alternativo por UI
-uploaded_json = st.sidebar.file_uploader(
-    "Reemplazar zonas.json (Opcional)", type=["json"]
-)
-if uploaded_json is not None:
-  try:
-    st.session_state.zonas = json.load(uploaded_json)
-    st.sidebar.success("Zonas actualizadas desde archivo manual.")
-  except Exception as e:
-    st.sidebar.error("Error al leer el archivo JSON subido.")
 
 st.sidebar.divider()
 
@@ -154,9 +144,8 @@ if uploaded_image is not None:
       st.markdown("""
             ---
             **Controles del Visor:**
-            * 🔍 **Rueda del ratón:** Acercar / Alejar Zoom.
+            * 🔍 **Rueda del ratón:** Acercar / Alejar.
             * 🖐️ **Clic + Arrastrar:** Moverse por la pantalla.
-            * 🔄 **Doble Clic:** Restablecer vista inicial.
             """)
 
       if st.session_state.zonas:
@@ -179,15 +168,13 @@ if uploaded_image is not None:
       else:
         img_final = img_original.copy()
 
-      # Convertir BGR a RGB en PIL Image para Zoom HD
-      from PIL import Image
-
+      # Convertir BGR a RGB en PIL Image
       img_rgb = cv2.cvtColor(img_final, cv2.COLOR_BGR2RGB)
       pil_image = Image.fromarray(img_rgb)
 
-      # Renderizado con Visor Interactivo HD
+      # Renderizado Interactivo HD corregido (mode="both")
       image_zoom(
-          pil_image, mode="pan", size=(1200, 600), keep_aspect_ratio=True
+          pil_image, mode="both", size=(1200, 600), keep_aspect_ratio=True
       )
 
   # ----------------------------------------------------
@@ -249,12 +236,10 @@ if uploaded_image is not None:
       for z in st.session_state.zonas:
         img_temp = dibujar_zona(img_temp, z)
 
-      from PIL import Image
-
       img_rgb_preview = cv2.cvtColor(img_temp, cv2.COLOR_BGR2RGB)
       image_zoom(
           Image.fromarray(img_rgb_preview),
-          mode="pan",
+          mode="both",
           size=(800, 450),
           keep_aspect_ratio=True,
       )
