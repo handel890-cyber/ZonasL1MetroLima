@@ -14,163 +14,6 @@ st.set_page_config(
 
 st.title("🚊 Sistema SCADA - Monitoreo y Resaltado de Zonas")
 
-
-# --- CONVERSIÓN DE HEX A BGR ---
-def hex_a_bgr(hex_color):
-  hex_color = hex_color.lstrip('#')
-  r = int(hex_color[0:2], 16)
-  g = int(hex_color[2:4], 16)
-  b = int(hex_color[4:6], 16)
-  return (b, g, r)
-
-
-# --- FUNCIONES DE DIBUJO ---
-def dibujar_zona(img_base, zona, color_bgr, grosor, alpha):
-  overlay = img_base.copy()
-
-  # 1. Dibujar líneas del tramo
-  for lin in zona.get("lineas", []):
-    cv2.line(
-        overlay,
-        (int(lin["x_inicio"]), int(lin["y_inicio"])),
-        (int(lin["x_fin"]), int(lin["y_fin"])),
-        color_bgr,
-        grosor,
-    )
-
-  # 2. Corchete Izquierdo [
-  c_i = zona.get("corchete_izq", {})
-  if c_i:
-    cv2.line(
-        overlay,
-        (int(c_i["x"]), int(c_i["y1"])),
-        (int(c_i["x"]), int(c_i["y2"])),
-        color_bgr,
-        max(3, grosor - 1),
-    )
-    cv2.line(
-        overlay,
-        (int(c_i["x"]), int(c_i["y1"])),
-        (int(c_i["x"]) + 25, int(c_i["y1"])),
-        color_bgr,
-        max(3, grosor - 1),
-    )
-    cv2.line(
-        overlay,
-        (int(c_i["x"]), int(c_i["y2"])),
-        (int(c_i["x"]) + 25, int(c_i["y2"])),
-        color_bgr,
-        max(3, grosor - 1),
-    )
-
-  # 3. Corchete Derecho ]
-  c_d = zona.get("corchete_der", {})
-  if c_d:
-    cv2.line(
-        overlay,
-        (int(c_d["x"]), int(c_d["y1"])),
-        (int(c_d["x"]), int(c_d["y2"])),
-        color_bgr,
-        max(3, grosor - 1),
-    )
-    cv2.line(
-        overlay,
-        (int(c_d["x"]), int(c_d["y1"])),
-        (int(c_d["x"]) - 25, int(c_d["y1"])),
-        color_bgr,
-        max(3, grosor - 1),
-    )
-    cv2.line(
-        overlay,
-        (int(c_d["x"]), int(c_d["y2"])),
-        (int(c_d["x"]) - 25, int(c_d["y2"])),
-        color_bgr,
-        max(3, grosor - 1),
-    )
-
-  # Mezcla de transparencia según la opacidad seleccionada
-  beta = 1.0 - alpha
-  return cv2.addWeighted(overlay, alpha, img_base, beta, 0)
-
-
-# --- RENDERIZADOR HTML/JS CON PERSISTENCIA DE PANTALLA (LOCALSTORAGE GLOBAL) ---
-def mostrar_visor_hd(img_bgr, height=650):
-  _, buffer = cv2.imencode(".png", img_bgr)
-  img_base64 = base64.b64encode(buffer).decode("utf-8")
-
-  html_code = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/openseadragon.min.js"></script>
-        <style>
-            #scada-container {{
-                width: 100%;
-                height: {height}px;
-                background-color: #0e1117;
-                border: 1px solid #30363d;
-                border-radius: 8px;
-            }}
-        </style>
-    </head>
-    <body style="margin: 0; background-color: #0e1117;">
-        <div id="scada-container"></div>
-        <script>
-            // Acceso al localStorage del navegador padre
-            var storage = window.parent.localStorage;
-
-            var viewer = OpenSeadragon({{
-                id: "scada-container",
-                prefixUrl: "https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/images/",
-                tileSources: {{
-                    type: 'image',
-                    url: 'data:image/png;base64,{img_base64}'
-                }},
-                showNavigationControl: true,
-                showFullScreenControl: true,
-                showZoomControl: true,
-                showHomeControl: true,
-                gestureSettingsMouse: {{
-                    clickToZoom: false,
-                    dblClickToZoom: true,
-                    scrollToZoom: true
-                }},
-                maxZoomPixelRatio: 5,
-                minZoomLevel: 0.8
-            }});
-
-            // Guardar posición continuamente en la ventana principal del navegador
-            function guardarPosicion() {{
-                if (viewer && viewer.viewport) {{
-                    var zoom = viewer.viewport.getZoom();
-                    var center = viewer.viewport.getCenter();
-                    storage.setItem('scada_zoom_v2', zoom);
-                    storage.setItem('scada_x_v2', center.x);
-                    storage.setItem('scada_y_v2', center.y);
-                }}
-            }}
-
-            viewer.addHandler('pan', guardarPosicion);
-            viewer.addHandler('zoom', guardarPosicion);
-
-            // Al abrir la nueva imagen, restaurar inmediatamente la posición anterior
-            viewer.addHandler('open', function() {{
-                var savedZoom = storage.getItem('scada_zoom_v2');
-                var savedX = storage.getItem('scada_x_v2');
-                var savedY = storage.getItem('scada_y_v2');
-
-                if (savedZoom && savedX && savedY) {{
-                    viewer.viewport.zoomTo(parseFloat(savedZoom), null, true);
-                    viewer.viewport.panTo(new OpenSeadragon.Point(parseFloat(savedX), parseFloat(savedY)), true);
-                }}
-            }});
-        </script>
-    </body>
-    </html>
-    """
-  st.components.v1.html(html_code, height=height + 10)
-
-
 # --- CARGA AUTOMÁTICA DEL ARCHIVO JSON DESDE GITHUB ---
 JSON_LOCAL = "zonas.json"
 
@@ -201,17 +44,11 @@ else:
 
 st.sidebar.divider()
 
-# --- CONFIGURACIÓN DE ESTILO DE LÍNEA ---
+# --- CONFIGURACIÓN DE ESTILO EN TIEMPO REAL ---
 st.sidebar.header("🎨 Personalización de Estilo")
-hex_color_sel = st.sidebar.color_picker(
-    "Color del Resaltado", value="#FFFF00"
-)  # Amarillo neón
-grosor_sel = st.sidebar.slider("Grosor de Línea (px)", 1, 15, 6)
-opacidad_sel = (
-    st.sidebar.slider("Opacidad (%)", 10, 100, 85) / 100.0
-)  # Convierte a escala 0.10 - 1.0
-
-color_bgr_sel = hex_a_bgr(hex_color_sel)
+hex_color_sel = st.sidebar.color_picker("Color del Resaltado", value="#FFFF00")
+grosor_sel = st.sidebar.slider("Grosor de Línea (px)", 1, 20, 6)
+opacidad_sel = st.sidebar.slider("Opacidad (%)", 10, 100, 85) / 100.0
 
 st.sidebar.divider()
 
@@ -219,6 +56,150 @@ st.sidebar.divider()
 modo = st.sidebar.radio(
     "Modo de Trabajo:", ["Visor / Monitoreo", "Mapeador / Crear Zonas"]
 )
+
+
+# --- VISOR INTERACTIVO CON RENDERIZADO VECTORIAL EN CLIENTE (FLUIDO) ---
+def mostrar_visor_vectorial(
+    img_bgr, zona_data, color_hex, grosor, opacidad, height=650
+):
+  _, buffer = cv2.imencode(".png", img_bgr)
+  img_base64 = base64.b64encode(buffer).decode("utf-8")
+  zona_json_str = json.dumps(zona_data) if zona_data else "null"
+
+  html_code = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/openseadragon.min.js"></script>
+        <style>
+            #scada-container {{
+                width: 100%;
+                height: {height}px;
+                background-color: #0e1117;
+                border: 1px solid #30363d;
+                border-radius: 8px;
+                position: relative;
+            }}
+        </style>
+    </head>
+    <body style="margin: 0; background-color: #0e1117;">
+        <div id="scada-container"></div>
+
+        <script>
+            var zona = {zona_json_str};
+            var color = "{color_hex}";
+            var grosor = {grosor};
+            var opacidad = {opacidad};
+
+            var viewer = OpenSeadragon({{
+                id: "scada-container",
+                prefixUrl: "https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/images/",
+                tileSources: {{
+                    type: 'image',
+                    url: 'data:image/png;base64,{img_base64}'
+                }},
+                showNavigationControl: true,
+                showFullScreenControl: true,
+                showZoomControl: true,
+                showHomeControl: true,
+                gestureSettingsMouse: {{ clickToZoom: false, dblClickToZoom: true, scrollToZoom: true }},
+                maxZoomPixelRatio: 5,
+                minZoomLevel: 0.8
+            }});
+
+            var overlayCanvas = null;
+
+            function redibujarOverlay() {{
+                if (!overlayCanvas || !zona) return;
+                var ctx = overlayCanvas.getContext('2d');
+                var imgWidth = viewer.world.getItemAt(0).getContentSize().x;
+                var imgHeight = viewer.world.getItemAt(0).getContentSize().y;
+
+                overlayCanvas.width = imgWidth;
+                overlayCanvas.height = imgHeight;
+
+                ctx.clearRect(0, 0, imgWidth, imgHeight);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = grosor;
+                ctx.globalAlpha = opacidad;
+                ctx.lineCap = "round";
+
+                // 1. Lineas principales
+                if (zona.lineas) {{
+                    zona.lineas.forEach(lin => {{
+                        ctx.beginPath();
+                        ctx.moveTo(lin.x_inicio, lin.y_inicio);
+                        ctx.lineTo(lin.x_fin, lin.y_fin);
+                        ctx.stroke();
+                    }});
+                }}
+
+                // 2. Corchete Izquierdo
+                if (zona.corchete_izq) {{
+                    let c = zona.corchete_izq;
+                    ctx.beginPath();
+                    ctx.moveTo(c.x + 25, c.y1);
+                    ctx.lineTo(c.x, c.y1);
+                    ctx.lineTo(c.x, c.y2);
+                    ctx.lineTo(c.x + 25, c.y2);
+                    ctx.stroke();
+                }}
+
+                // 3. Corchete Derecho
+                if (zona.corchete_der) {{
+                    let c = zona.corchete_der;
+                    ctx.beginPath();
+                    ctx.moveTo(c.x - 25, c.y1);
+                    ctx.lineTo(c.x, c.y1);
+                    ctx.lineTo(c.x, c.y2);
+                    ctx.lineTo(c.x - 25, c.y2);
+                    ctx.stroke();
+                }}
+            }}
+
+            viewer.addHandler('open', function() {{
+                overlayCanvas = document.createElement('canvas');
+                var imgSize = viewer.world.getItemAt(0).getContentSize();
+                overlayCanvas.width = imgSize.x;
+                overlayCanvas.height = imgSize.y;
+
+                viewer.addOverlay({{
+                    element: overlayCanvas,
+                    location: new OpenSeadragon.Rect(0, 0, 1, imgSize.y / imgSize.x)
+                }});
+
+                redibujarOverlay();
+
+                // Restaurar zoom y posición
+                var storage = window.parent.localStorage;
+                var savedZoom = storage.getItem('scada_zoom_v3');
+                var savedX = storage.getItem('scada_x_v3');
+                var savedY = storage.getItem('scada_y_v3');
+
+                if (savedZoom && savedX && savedY) {{
+                    viewer.viewport.zoomTo(parseFloat(savedZoom), null, true);
+                    viewer.viewport.panTo(new OpenSeadragon.Point(parseFloat(savedX), parseFloat(savedY)), true);
+                }}
+            }});
+
+            function guardarPosicion() {{
+                if (viewer && viewer.viewport) {{
+                    var storage = window.parent.localStorage;
+                    storage.setItem('scada_zoom_v3', viewer.viewport.getZoom());
+                    var center = viewer.viewport.getCenter();
+                    storage.setItem('scada_x_v3', center.x);
+                    storage.setItem('scada_y_v3', center.y);
+                }}
+            }}
+
+            viewer.addHandler('pan', guardarPosicion);
+            viewer.addHandler('zoom', guardarPosicion);
+        </script>
+    </body>
+    </html>
+    """
+  st.components.v1.html(html_code, height=height + 10)
+
 
 if uploaded_image is not None:
   file_bytes = np.asarray(bytearray(uploaded_image.read()), dtype=np.uint8)
@@ -248,19 +229,22 @@ if uploaded_image is not None:
         )
 
     with col_view:
+      zona_obj = None
       if zona_seleccionada_id != "Ninguna":
         zona_obj = next(
             z
             for z in st.session_state.zonas
             if str(z["id"]) == zona_seleccionada_id
         )
-        img_final = dibujar_zona(
-            img_original, zona_obj, color_bgr_sel, grosor_sel, opacidad_sel
-        )
-      else:
-        img_final = img_original.copy()
 
-      mostrar_visor_hd(img_final, height=650)
+      mostrar_visor_vectorial(
+          img_original,
+          zona_obj,
+          hex_color_sel,
+          grosor_sel,
+          opacidad_sel,
+          height=650,
+      )
 
   # ----------------------------------------------------
   # MODO 2: MAPEADOR / CREAR ZONAS
@@ -317,13 +301,18 @@ if uploaded_image is not None:
           st.error("Por favor ingrese un ID válido.")
 
     with col_preview:
-      img_temp = img_original.copy()
-      for z in st.session_state.zonas:
-        img_temp = dibujar_zona(
-            img_temp, z, color_bgr_sel, grosor_sel, opacidad_sel
-        )
-
-      mostrar_visor_hd(img_temp, height=500)
+      # Mostrar la última zona creada si existe
+      zona_preview = (
+          st.session_state.zonas[-1] if st.session_state.zonas else None
+      )
+      mostrar_visor_vectorial(
+          img_original,
+          zona_preview,
+          hex_color_sel,
+          grosor_sel,
+          opacidad_sel,
+          height=500,
+      )
 
 else:
   st.warning(
