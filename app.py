@@ -3,18 +3,19 @@ import os
 import cv2
 import numpy as np
 import streamlit as st
+from streamlit_image_zoom import image_zoom
 
 # Configuración de la página
 st.set_page_config(
-    page_title="Sistema SCADA - Resaltador de Zonas",
+    page_title="Sistema SCADA - Resaltador de Zonas HD",
     page_icon="🚊",
     layout="wide",
 )
 
 st.title("🚊 Sistema SCADA - Monitoreo y Resaltado de Zonas")
 st.markdown(
-    "Cargue un esquema SCADA, defina zonas o resalte tramos en tiempo real con"
-    " delimitadores neón."
+    "Cargue un esquema SCADA, resalte tramos y **haga zoom/pan con la rueda del"
+    " ratón sin perder nitidez**."
 )
 
 
@@ -91,7 +92,6 @@ JSON_LOCAL = "zonas.json"
 
 if "zonas" not in st.session_state:
   st.session_state.zonas = []
-  # Intentar cargar zonas.json automáticamente si está subido al repositorio
   if os.path.exists(JSON_LOCAL):
     try:
       with open(JSON_LOCAL, "r", encoding="utf-8") as f:
@@ -113,9 +113,9 @@ if st.session_state.zonas:
       f"✅ `zonas.json` cargado con {len(st.session_state.zonas)} zonas."
   )
 else:
-  st.sidebar.info("ℹ️ No se detectó `zonas.json` o está vacío.")
+  st.sidebar.info("ℹ️ No se detectó `zonas.json` en GitHub.")
 
-# Cargar JSON alternativo por UI si se requiere
+# Cargar JSON alternativo por UI
 uploaded_json = st.sidebar.file_uploader(
     "Reemplazar zonas.json (Opcional)", type=["json"]
 )
@@ -134,30 +134,35 @@ modo = st.sidebar.radio(
 )
 
 if uploaded_image is not None:
-  # CORRECCIÓN DE ERROR: Usar np.uint8
   file_bytes = np.asarray(bytearray(uploaded_image.read()), dtype=np.uint8)
   img_original = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
   # ----------------------------------------------------
-  # MODO 1: VISOR / MONITOREO
+  # MODO 1: VISOR / MONITOREO (CON ZOOM Y RUEDA DEL RATÓN)
   # ----------------------------------------------------
   if modo == "Visor / Monitoreo":
-    col_ctrl, col_view = st.columns([1, 3])
+    col_ctrl, col_view = st.columns([1, 4])
 
     with col_ctrl:
-      st.subheader("Buscador de Zonas")
+      st.subheader("Buscador")
       ids_zonas = [str(z["id"]) for z in st.session_state.zonas]
 
       zona_seleccionada_id = st.selectbox(
-          "Seleccione una zona a resaltar:",
-          options=["Ninguna"] + ids_zonas,
+          "Seleccione Zona:", options=["Ninguna"] + ids_zonas
       )
 
-      # Descargar JSON actual
+      st.markdown("""
+            ---
+            **Controles del Visor:**
+            * 🔍 **Rueda del ratón:** Acercar / Alejar Zoom.
+            * 🖐️ **Clic + Arrastrar:** Moverse por la pantalla.
+            * 🔄 **Doble Clic:** Restablecer vista inicial.
+            """)
+
       if st.session_state.zonas:
         json_data = json.dumps(st.session_state.zonas, indent=2)
         st.download_button(
-            label="💾 Descargar zonas.json actual",
+            label="💾 Descargar zonas.json",
             data=json_data,
             file_name="zonas.json",
             mime="application/json",
@@ -170,28 +175,26 @@ if uploaded_image is not None:
             for z in st.session_state.zonas
             if str(z["id"]) == zona_seleccionada_id
         )
-        img_resaltada = dibujar_zona(img_original, zona_obj)
-        st.image(
-            cv2.cvtColor(img_resaltada, cv2.COLOR_BGR2RGB),
-            caption=f"Visualizando Zona {zona_seleccionada_id}",
-            use_container_width=True,
-        )
+        img_final = dibujar_zona(img_original, zona_obj)
       else:
-        st.image(
-            cv2.cvtColor(img_original, cv2.COLOR_BGR2RGB),
-            caption="Diagrama SCADA Base",
-            use_container_width=True,
-        )
+        img_final = img_original.copy()
+
+      # Convertir BGR a RGB en PIL Image para Zoom HD
+      from PIL import Image
+
+      img_rgb = cv2.cvtColor(img_final, cv2.COLOR_BGR2RGB)
+      pil_image = Image.fromarray(img_rgb)
+
+      # Renderizado con Visor Interactivo HD
+      image_zoom(
+          pil_image, mode="pan", size=(1200, 600), keep_aspect_ratio=True
+      )
 
   # ----------------------------------------------------
   # MODO 2: MAPEADOR / CREAR ZONAS
   # ----------------------------------------------------
   else:
-    st.subheader("🛠️ Creador de Zonas (Ingreso Manual de Puntos)")
-    st.info(
-        "Ingrese el ID de la zona y los pares de coordenadas para los tramos."
-    )
-
+    st.subheader("🛠️ Creador de Zonas (Ingreso Manual)")
     col_form, col_preview = st.columns([1, 2])
 
     with col_form:
@@ -245,10 +248,15 @@ if uploaded_image is not None:
       img_temp = img_original.copy()
       for z in st.session_state.zonas:
         img_temp = dibujar_zona(img_temp, z)
-      st.image(
-          cv2.cvtColor(img_temp, cv2.COLOR_BGR2RGB),
-          caption="Vista previa del mapa con zonas registradas",
-          use_container_width=True,
+
+      from PIL import Image
+
+      img_rgb_preview = cv2.cvtColor(img_temp, cv2.COLOR_BGR2RGB)
+      image_zoom(
+          Image.fromarray(img_rgb_preview),
+          mode="pan",
+          size=(800, 450),
+          keep_aspect_ratio=True,
       )
 
 else:
