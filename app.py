@@ -93,7 +93,7 @@ def dibujar_zona(img_base, zona, color_bgr, grosor, alpha):
   return cv2.addWeighted(overlay, alpha, img_base, beta, 0)
 
 
-# --- RENDERIZADOR HTML/JS DE ALTA RESOLUCIÓN Y PANTALLA COMPLETA ---
+# --- RENDERIZADOR HTML/JS QUE PRESERVA EL ZOOM Y LA POSICIÓN (PERSISTENTE) ---
 def mostrar_visor_hd(img_bgr, height=650):
   _, buffer = cv2.imencode(".png", img_bgr)
   img_base64 = base64.b64encode(buffer).decode("utf-8")
@@ -132,8 +132,34 @@ def mostrar_visor_hd(img_bgr, height=650):
                     dblClickToZoom: true,
                     scrollToZoom: true
                 }},
-                maxZoomPixelRatio: 4,
+                maxZoomPixelRatio: 5,
                 minZoomLevel: 0.8
+            }});
+
+            // Guardar estado del Zoom y Pan en SessionStorage al moverse
+            function guardarEstado() {{
+                if (viewer && viewer.viewport) {{
+                    var zoom = viewer.viewport.getZoom();
+                    var center = viewer.viewport.getCenter();
+                    sessionStorage.setItem('scada_zoom', zoom);
+                    sessionStorage.setItem('scada_center_x', center.x);
+                    sessionStorage.setItem('scada_center_y', center.y);
+                }}
+            }}
+
+            viewer.addHandler('pan', guardarEstado);
+            viewer.addHandler('zoom', guardarEstado);
+
+            // Restaurar estado guardado al re-renderizar la imagen
+            viewer.addHandler('open', function() {{
+                var savedZoom = sessionStorage.getItem('scada_zoom');
+                var savedX = sessionStorage.getItem('scada_center_x');
+                var savedY = sessionStorage.getItem('scada_center_y');
+
+                if (savedZoom && savedX && savedY) {{
+                    viewer.viewport.zoomTo(parseFloat(savedZoom), null, true);
+                    viewer.viewport.panTo(new OpenSeadragon.Point(parseFloat(savedX), parseFloat(savedY)), true);
+                }}
             }});
         </script>
     </body>
@@ -176,7 +202,7 @@ st.sidebar.divider()
 st.sidebar.header("🎨 Personalización de Estilo")
 hex_color_sel = st.sidebar.color_picker(
     "Color del Resaltado", value="#FFFF00"
-)  # Amarillo neón por defecto
+)  # Amarillo neón
 grosor_sel = st.sidebar.slider("Grosor de Línea (px)", 1, 15, 6)
 opacidad_sel = (
     st.sidebar.slider("Opacidad (%)", 10, 100, 85) / 100.0
