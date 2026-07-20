@@ -93,7 +93,7 @@ def dibujar_zona(img_base, zona, color_bgr, grosor, alpha):
   return cv2.addWeighted(overlay, alpha, img_base, beta, 0)
 
 
-# --- RENDERIZADOR HTML/JS QUE PRESERVA EL ZOOM Y LA POSICIÓN (PERSISTENTE) ---
+# --- RENDERIZADOR HTML/JS CON PERSISTENCIA DE PANTALLA (LOCALSTORAGE GLOBAL) ---
 def mostrar_visor_hd(img_bgr, height=650):
   _, buffer = cv2.imencode(".png", img_bgr)
   img_base64 = base64.b64encode(buffer).decode("utf-8")
@@ -116,6 +116,9 @@ def mostrar_visor_hd(img_bgr, height=650):
     <body style="margin: 0; background-color: #0e1117;">
         <div id="scada-container"></div>
         <script>
+            // Acceso al localStorage del navegador padre
+            var storage = window.parent.localStorage;
+
             var viewer = OpenSeadragon({{
                 id: "scada-container",
                 prefixUrl: "https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/images/",
@@ -136,25 +139,25 @@ def mostrar_visor_hd(img_bgr, height=650):
                 minZoomLevel: 0.8
             }});
 
-            // Guardar estado del Zoom y Pan en SessionStorage al moverse
-            function guardarEstado() {{
+            // Guardar posición continuamente en la ventana principal del navegador
+            function guardarPosicion() {{
                 if (viewer && viewer.viewport) {{
                     var zoom = viewer.viewport.getZoom();
                     var center = viewer.viewport.getCenter();
-                    sessionStorage.setItem('scada_zoom', zoom);
-                    sessionStorage.setItem('scada_center_x', center.x);
-                    sessionStorage.setItem('scada_center_y', center.y);
+                    storage.setItem('scada_zoom_v2', zoom);
+                    storage.setItem('scada_x_v2', center.x);
+                    storage.setItem('scada_y_v2', center.y);
                 }}
             }}
 
-            viewer.addHandler('pan', guardarEstado);
-            viewer.addHandler('zoom', guardarEstado);
+            viewer.addHandler('pan', guardarPosicion);
+            viewer.addHandler('zoom', guardarPosicion);
 
-            // Restaurar estado guardado al re-renderizar la imagen
+            // Al abrir la nueva imagen, restaurar inmediatamente la posición anterior
             viewer.addHandler('open', function() {{
-                var savedZoom = sessionStorage.getItem('scada_zoom');
-                var savedX = sessionStorage.getItem('scada_center_x');
-                var savedY = sessionStorage.getItem('scada_center_y');
+                var savedZoom = storage.getItem('scada_zoom_v2');
+                var savedX = storage.getItem('scada_x_v2');
+                var savedY = storage.getItem('scada_y_v2');
 
                 if (savedZoom && savedX && savedY) {{
                     viewer.viewport.zoomTo(parseFloat(savedZoom), null, true);
