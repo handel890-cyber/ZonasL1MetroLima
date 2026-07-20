@@ -27,7 +27,7 @@ if "zonas" not in st.session_state:
       st.error(f"Error al leer el archivo {JSON_LOCAL} desde GitHub.")
 
 # --- PANEL LATERAL (SIDEBAR) ---
-st.sidebar.header("📁 Carga de Archivos")
+st.sidebar.header("📁 Gestión de Archivos")
 
 # Cargar Imagen Base
 uploaded_image = st.sidebar.file_uploader(
@@ -38,6 +38,14 @@ uploaded_image = st.sidebar.file_uploader(
 if st.session_state.zonas:
   st.sidebar.success(
       f"✅ `zonas.json` cargado con {len(st.session_state.zonas)} zonas."
+  )
+  # Botón de descarga movido al menú lateral
+  json_data = json.dumps(st.session_state.zonas, indent=2)
+  st.sidebar.download_button(
+      label="💾 Descargar zonas.json actual",
+      data=json_data,
+      file_name="zonas.json",
+      mime="application/json",
   )
 else:
   st.sidebar.info("ℹ️ No se detectó `zonas.json` en GitHub.")
@@ -50,11 +58,11 @@ modo = st.sidebar.radio(
 )
 
 
-# --- VISOR INTERACTIVO CON CONTROLES NATIVOS EN JAVASCRIPT ---
-def mostrar_visor_vectorial(img_bgr, zona_data, height=650):
+# --- VISOR INTERACTIVO "TODO EN UNO" (HTML5/JS NATIVO) ---
+def mostrar_visor_vectorial(img_bgr, lista_zonas, mostrar_selector=True, height=650):
   _, buffer = cv2.imencode(".png", img_bgr)
   img_base64 = base64.b64encode(buffer).decode("utf-8")
-  zona_json_str = json.dumps(zona_data) if zona_data else "null"
+  zonas_json_str = json.dumps(lista_zonas)
 
   html_code = f"""
     <!DOCTYPE html>
@@ -70,11 +78,12 @@ def mostrar_visor_vectorial(img_bgr, zona_data, height=650):
                 border-radius: 8px;
                 position: relative;
             }}
-            /* Estilo del panel flotante (Derecha y Minimizable) */
+            
+            /* Panel Superior Derecho (Estilo) */
             #floating-controls {{
                 position: absolute;
                 top: 15px;
-                right: 15px; /* Movido a la derecha */
+                right: 15px;
                 z-index: 1000;
                 background-color: rgba(22, 27, 34, 0.85);
                 padding: 12px 15px;
@@ -97,84 +106,128 @@ def mostrar_visor_vectorial(img_bgr, zona_data, height=650):
                 margin-bottom: 10px;
             }}
             #toggle-btn {{
-                background: none;
-                border: none;
-                color: #c9d1d9;
-                cursor: pointer;
-                font-weight: bold;
-                font-size: 14px;
-                padding: 0 5px;
+                background: none; border: none; color: #c9d1d9; cursor: pointer;
+                font-weight: bold; font-size: 14px; padding: 0 5px;
             }}
             #toggle-btn:hover {{ color: #ffffff; }}
             .control-group {{
-                margin-bottom: 10px;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
+                margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;
             }}
             input[type="range"] {{ width: 90px; }}
             input[type="color"] {{ cursor: pointer; border: none; background: none; width: 30px; height: 30px; padding: 0; }}
+
+            /* Panel Inferior Derecho (Buscador de Zonas) */
+            #zone-selector-panel {{
+                position: absolute;
+                bottom: 15px;
+                right: 15px;
+                z-index: 1000;
+                background-color: rgba(22, 27, 34, 0.90);
+                padding: 10px 15px;
+                border-radius: 8px;
+                border: 1px solid #1f6feb;
+                color: #ffffff;
+                font-family: sans-serif;
+                font-size: 14px;
+                backdrop-filter: blur(4px);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+                display: {'flex' if mostrar_selector else 'none'};
+                align-items: center;
+                gap: 10px;
+            }}
+            #zoneSelect {{
+                background-color: #0d1117;
+                color: #c9d1d9;
+                border: 1px solid #30363d;
+                padding: 5px 10px;
+                border-radius: 4px;
+                font-size: 14px;
+                outline: none;
+                cursor: pointer;
+            }}
+            #zoneSelect:focus {{ border-color: #58a6ff; }}
         </style>
     </head>
     <body style="margin: 0; background-color: #0e1117;">
         
         <div id="scada-container">
-            <!-- Panel Flotante de Controles Visuales -->
+            
+            <!-- Panel Superior Derecho: Controles Visuales -->
             <div id="floating-controls">
                 <div id="controls-header">
                     <span>🎨 Estilo de Zona</span>
                     <button id="toggle-btn" onclick="toggleControls()" title="Minimizar / Expandir">—</button>
                 </div>
-                
                 <div id="controls-body">
                     <div class="control-group">
-                        <label for="colorPicker">Color de Línea:</label>
+                        <label for="colorPicker">Color:</label>
                         <input type="color" id="colorPicker" value="#FFFF00">
                     </div>
-                    
                     <div class="control-group">
                         <label for="grosorSlider">Grosor (<span id="grosorVal">6</span>px):</label>
                         <input type="range" id="grosorSlider" min="1" max="25" value="6">
                     </div>
-                    
                     <div class="control-group">
                         <label for="opacidadSlider">Opacidad (<span id="opacidadVal">85</span>%):</label>
                         <input type="range" id="opacidadSlider" min="0.1" max="1.0" step="0.05" value="0.85">
                     </div>
                 </div>
             </div>
+
+            <!-- Panel Inferior Derecho: Buscador de Zonas -->
+            <div id="zone-selector-panel">
+                <label for="zoneSelect" style="font-weight: bold;">📍 Ir a Zona:</label>
+                <select id="zoneSelect">
+                    <option value="Ninguna">Ninguna</option>
+                </select>
+            </div>
+
         </div>
 
         <script>
-            // Lógica para Minimizar/Expandir el panel
+            // Lógica para Minimizar/Expandir Panel Superior
             function toggleControls() {{
                 var body = document.getElementById("controls-body");
                 var btn = document.getElementById("toggle-btn");
                 var header = document.getElementById("controls-header");
-                
                 if (body.style.display === "none") {{
-                    body.style.display = "block";
-                    btn.innerText = "—";
-                    header.style.borderBottom = "1px solid #444c56";
-                    header.style.marginBottom = "10px";
+                    body.style.display = "block"; btn.innerText = "—";
+                    header.style.borderBottom = "1px solid #444c56"; header.style.marginBottom = "10px";
                 }} else {{
-                    body.style.display = "none";
-                    btn.innerText = "☐";
-                    header.style.borderBottom = "none";
-                    header.style.marginBottom = "0";
+                    body.style.display = "none"; btn.innerText = "☐";
+                    header.style.borderBottom = "none"; header.style.marginBottom = "0";
                 }}
             }}
 
-            var zona = {zona_json_str};
-            
-            // Referencias a los controles HTML
+            // Variables de Datos y Estado
+            var todasLasZonas = {zonas_json_str};
+            var mostrarSelector = {'true' if mostrar_selector else 'false'} === 'true';
+            var zonaActual = null;
+
+            // Configurar modo Mapeador (Muestra la última zona creada automáticamente)
+            if (!mostrarSelector && todasLasZonas.length > 0) {{
+                zonaActual = todasLasZonas[0]; 
+            }}
+
+            // Poblar el Selector de Zonas (Modo Visor)
+            var zoneSelect = document.getElementById('zoneSelect');
+            if (mostrarSelector && zoneSelect) {{
+                todasLasZonas.forEach(function(z) {{
+                    var opt = document.createElement('option');
+                    opt.value = z.id;
+                    opt.innerHTML = "Zona " + z.id;
+                    zoneSelect.appendChild(opt);
+                }});
+            }}
+
+            // Referencias a los controles de estilo
             var inputColor = document.getElementById('colorPicker');
             var inputGrosor = document.getElementById('grosorSlider');
             var inputOpacidad = document.getElementById('opacidadSlider');
-            
             var textGrosor = document.getElementById('grosorVal');
             var textOpacidad = document.getElementById('opacidadVal');
 
+            // Inicializar OpenSeadragon
             var viewer = OpenSeadragon({{
                 id: "scada-container",
                 prefixUrl: "https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/images/",
@@ -193,29 +246,29 @@ def mostrar_visor_vectorial(img_bgr, zona_data, height=650):
 
             var overlayCanvas = null;
 
-            // Función para dibujar los gráficos sin recargar nada
+            // Dibuja el resaltado sin recargar la página
             function redibujarOverlay() {{
-                if (!overlayCanvas || !zona) return;
+                if (!overlayCanvas) return;
                 var ctx = overlayCanvas.getContext('2d');
                 var imgWidth = viewer.world.getItemAt(0).getContentSize().x;
                 var imgHeight = viewer.world.getItemAt(0).getContentSize().y;
 
-                // Actualizar etiquetas de texto
                 textGrosor.innerText = inputGrosor.value;
                 textOpacidad.innerText = Math.round(inputOpacidad.value * 100);
 
                 overlayCanvas.width = imgWidth;
                 overlayCanvas.height = imgHeight;
-
                 ctx.clearRect(0, 0, imgWidth, imgHeight);
+
+                if (!zonaActual) return;
+
                 ctx.strokeStyle = inputColor.value;
                 ctx.lineWidth = parseInt(inputGrosor.value);
                 ctx.globalAlpha = parseFloat(inputOpacidad.value);
                 ctx.lineCap = "round";
 
-                // 1. Lineas principales
-                if (zona.lineas) {{
-                    zona.lineas.forEach(lin => {{
+                if (zonaActual.lineas) {{
+                    zonaActual.lineas.forEach(lin => {{
                         ctx.beginPath();
                         ctx.moveTo(lin.x_inicio, lin.y_inicio);
                         ctx.lineTo(lin.x_fin, lin.y_fin);
@@ -223,33 +276,58 @@ def mostrar_visor_vectorial(img_bgr, zona_data, height=650):
                     }});
                 }}
 
-                // 2. Corchete Izquierdo
-                if (zona.corchete_izq) {{
-                    let c = zona.corchete_izq;
-                    ctx.beginPath();
-                    ctx.moveTo(c.x + 25, c.y1);
-                    ctx.lineTo(c.x, c.y1);
-                    ctx.lineTo(c.x, c.y2);
-                    ctx.lineTo(c.x + 25, c.y2);
-                    ctx.stroke();
+                if (zonaActual.corchete_izq) {{
+                    let c = zonaActual.corchete_izq;
+                    ctx.beginPath(); ctx.moveTo(c.x + 25, c.y1); ctx.lineTo(c.x, c.y1);
+                    ctx.lineTo(c.x, c.y2); ctx.lineTo(c.x + 25, c.y2); ctx.stroke();
                 }}
 
-                // 3. Corchete Derecho
-                if (zona.corchete_der) {{
-                    let c = zona.corchete_der;
-                    ctx.beginPath();
-                    ctx.moveTo(c.x - 25, c.y1);
-                    ctx.lineTo(c.x, c.y1);
-                    ctx.lineTo(c.x, c.y2);
-                    ctx.lineTo(c.x - 25, c.y2);
-                    ctx.stroke();
+                if (zonaActual.corchete_der) {{
+                    let c = zonaActual.corchete_der;
+                    ctx.beginPath(); ctx.moveTo(c.x - 25, c.y1); ctx.lineTo(c.x, c.y1);
+                    ctx.lineTo(c.x, c.y2); ctx.lineTo(c.x - 25, c.y2); ctx.stroke();
                 }}
             }}
 
-            // Event Listeners: Cada vez que mueves un control, se redibuja en vivo
+            // Centrar la cámara en la zona automáticamente
+            function centrarEnZona(z) {{
+                if (!z || !z.lineas || z.lineas.length === 0) return;
+                var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                z.lineas.forEach(l => {{
+                    minX = Math.min(minX, l.x_inicio, l.x_fin);
+                    minY = Math.min(minY, l.y_inicio, l.y_fin);
+                    maxX = Math.max(maxX, l.x_inicio, l.x_fin);
+                    maxY = Math.max(maxY, l.y_inicio, l.y_fin);
+                }});
+                var cx = (minX + maxX) / 2;
+                var cy = (minY + maxY) / 2;
+
+                var imgWidth = viewer.world.getItemAt(0).getContentSize().x;
+                var normX = cx / imgWidth;
+                var normY = cy / imgWidth;
+
+                // Mover cámara a la zona con un zoom moderado
+                viewer.viewport.panTo(new OpenSeadragon.Point(normX, normY), true);
+                viewer.viewport.zoomTo(3, new OpenSeadragon.Point(normX, normY), true);
+            }}
+
+            // Event Listeners
             inputColor.addEventListener('input', redibujarOverlay);
             inputGrosor.addEventListener('input', redibujarOverlay);
             inputOpacidad.addEventListener('input', redibujarOverlay);
+
+            if (zoneSelect) {{
+                zoneSelect.addEventListener('change', function() {{
+                    var selectedId = this.value;
+                    if (selectedId === "Ninguna") {{
+                        zonaActual = null;
+                    }} else {{
+                        zonaActual = todasLasZonas.find(z => String(z.id) === String(selectedId));
+                        centrarEnZona(zonaActual); // Navegación automática
+                    }}
+                    redibujarOverlay();
+                }});
+            }}
 
             viewer.addHandler('open', function() {{
                 overlayCanvas = document.createElement('canvas');
@@ -264,11 +342,11 @@ def mostrar_visor_vectorial(img_bgr, zona_data, height=650):
 
                 redibujarOverlay();
 
-                // Restaurar zoom solo al cargar el mapa entero
+                // Restaurar posición si venimos de un reload de Python
                 var storage = window.parent.localStorage;
-                var savedZoom = storage.getItem('scada_zoom_v4');
-                var savedX = storage.getItem('scada_x_v4');
-                var savedY = storage.getItem('scada_y_v4');
+                var savedZoom = storage.getItem('scada_zoom_v5');
+                var savedX = storage.getItem('scada_x_v5');
+                var savedY = storage.getItem('scada_y_v5');
 
                 if (savedZoom && savedX && savedY) {{
                     viewer.viewport.zoomTo(parseFloat(savedZoom), null, true);
@@ -279,10 +357,10 @@ def mostrar_visor_vectorial(img_bgr, zona_data, height=650):
             function guardarPosicion() {{
                 if (viewer && viewer.viewport) {{
                     var storage = window.parent.localStorage;
-                    storage.setItem('scada_zoom_v4', viewer.viewport.getZoom());
+                    storage.setItem('scada_zoom_v5', viewer.viewport.getZoom());
                     var center = viewer.viewport.getCenter();
-                    storage.setItem('scada_x_v4', center.x);
-                    storage.setItem('scada_y_v4', center.y);
+                    storage.setItem('scada_x_v5', center.x);
+                    storage.setItem('scada_y_v5', center.y);
                 }}
             }}
 
@@ -303,35 +381,8 @@ if uploaded_image is not None:
   # MODO 1: VISOR / MONITOREO HD
   # ----------------------------------------------------
   if modo == "Visor / Monitoreo":
-    col_ctrl, col_view = st.columns([1, 4])
-
-    with col_ctrl:
-      st.subheader("Buscador")
-      ids_zonas = [str(z["id"]) for z in st.session_state.zonas]
-
-      zona_seleccionada_id = st.selectbox(
-          "Seleccione Zona:", options=["Ninguna"] + ids_zonas
-      )
-
-      if st.session_state.zonas:
-        json_data = json.dumps(st.session_state.zonas, indent=2)
-        st.download_button(
-            label="💾 Descargar zonas.json",
-            data=json_data,
-            file_name="zonas.json",
-            mime="application/json",
-        )
-
-    with col_view:
-      zona_obj = None
-      if zona_seleccionada_id != "Ninguna":
-        zona_obj = next(
-            z
-            for z in st.session_state.zonas
-            if str(z["id"]) == zona_seleccionada_id
-        )
-
-      mostrar_visor_vectorial(img_original, zona_obj, height=650)
+      # Ya no necesitamos columnas, la imagen ocupa el 100% del ancho
+      mostrar_visor_vectorial(img_original, st.session_state.zonas, mostrar_selector=True, height=720)
 
   # ----------------------------------------------------
   # MODO 2: MAPEADOR / CREAR ZONAS
@@ -388,14 +439,11 @@ if uploaded_image is not None:
           st.error("Por favor ingrese un ID válido.")
 
     with col_preview:
-      # Mostrar la última zona creada si existe
-      zona_preview = (
-          st.session_state.zonas[-1] if st.session_state.zonas else None
-      )
-      mostrar_visor_vectorial(img_original, zona_preview, height=500)
+      # En Mapeador, solo mostramos la última zona creada y ocultamos el selector
+      zona_preview = [st.session_state.zonas[-1]] if st.session_state.zonas else []
+      mostrar_visor_vectorial(img_original, zona_preview, mostrar_selector=False, height=500)
 
 else:
   st.warning(
-      "👈 Por favor, suba una imagen del esquema SCADA en el panel izquierdo"
-      " para comenzar."
+      "👈 Por favor, suba una imagen del esquema SCADA en el panel izquierdo para comenzar."
   )
