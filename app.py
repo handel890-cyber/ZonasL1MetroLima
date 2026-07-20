@@ -70,57 +70,101 @@ def mostrar_visor_vectorial(img_bgr, zona_data, height=650):
                 border-radius: 8px;
                 position: relative;
             }}
-            /* Estilo del panel flotante de personalización */
+            /* Estilo del panel flotante (Derecha y Minimizable) */
             #floating-controls {{
                 position: absolute;
                 top: 15px;
-                left: 15px;
+                right: 15px; /* Movido a la derecha */
                 z-index: 1000;
                 background-color: rgba(22, 27, 34, 0.85);
-                padding: 15px;
+                padding: 12px 15px;
                 border-radius: 8px;
                 border: 1px solid #444c56;
                 color: #c9d1d9;
                 font-family: sans-serif;
                 font-size: 13px;
                 backdrop-filter: blur(4px);
+                width: 240px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.3);
             }}
+            #controls-header {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-weight: bold;
+                border-bottom: 1px solid #444c56;
+                padding-bottom: 8px;
+                margin-bottom: 10px;
+            }}
+            #toggle-btn {{
+                background: none;
+                border: none;
+                color: #c9d1d9;
+                cursor: pointer;
+                font-weight: bold;
+                font-size: 14px;
+                padding: 0 5px;
+            }}
+            #toggle-btn:hover {{ color: #ffffff; }}
             .control-group {{
                 margin-bottom: 10px;
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                width: 220px;
             }}
-            input[type="range"] {{ width: 100px; }}
-            input[type="color"] {{ cursor: pointer; border: none; background: none; width: 30px; height: 30px; }}
+            input[type="range"] {{ width: 90px; }}
+            input[type="color"] {{ cursor: pointer; border: none; background: none; width: 30px; height: 30px; padding: 0; }}
         </style>
     </head>
     <body style="margin: 0; background-color: #0e1117;">
         
         <div id="scada-container">
-            <!-- Panel Flotante de Controles Visuales (Oculto a Streamlit) -->
+            <!-- Panel Flotante de Controles Visuales -->
             <div id="floating-controls">
-                <div style="font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #444c56; padding-bottom: 5px;">🎨 Personalización Rápida</div>
-                
-                <div class="control-group">
-                    <label for="colorPicker">Color de Línea:</label>
-                    <input type="color" id="colorPicker" value="#FFFF00">
+                <div id="controls-header">
+                    <span>🎨 Estilo de Zona</span>
+                    <button id="toggle-btn" onclick="toggleControls()" title="Minimizar / Expandir">—</button>
                 </div>
                 
-                <div class="control-group">
-                    <label for="grosorSlider">Grosor (<span id="grosorVal">6</span>px):</label>
-                    <input type="range" id="grosorSlider" min="1" max="25" value="6">
-                </div>
-                
-                <div class="control-group">
-                    <label for="opacidadSlider">Opacidad (<span id="opacidadVal">85</span>%):</label>
-                    <input type="range" id="opacidadSlider" min="0.1" max="1.0" step="0.05" value="0.85">
+                <div id="controls-body">
+                    <div class="control-group">
+                        <label for="colorPicker">Color de Línea:</label>
+                        <input type="color" id="colorPicker" value="#FFFF00">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="grosorSlider">Grosor (<span id="grosorVal">6</span>px):</label>
+                        <input type="range" id="grosorSlider" min="1" max="25" value="6">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="opacidadSlider">Opacidad (<span id="opacidadVal">85</span>%):</label>
+                        <input type="range" id="opacidadSlider" min="0.1" max="1.0" step="0.05" value="0.85">
+                    </div>
                 </div>
             </div>
         </div>
 
         <script>
+            // Lógica para Minimizar/Expandir el panel
+            function toggleControls() {{
+                var body = document.getElementById("controls-body");
+                var btn = document.getElementById("toggle-btn");
+                var header = document.getElementById("controls-header");
+                
+                if (body.style.display === "none") {{
+                    body.style.display = "block";
+                    btn.innerText = "—";
+                    header.style.borderBottom = "1px solid #444c56";
+                    header.style.marginBottom = "10px";
+                }} else {{
+                    body.style.display = "none";
+                    btn.innerText = "☐";
+                    header.style.borderBottom = "none";
+                    header.style.marginBottom = "0";
+                }}
+            }}
+
             var zona = {zona_json_str};
             
             // Referencias a los controles HTML
