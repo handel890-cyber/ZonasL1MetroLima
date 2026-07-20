@@ -12,7 +12,7 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("🚊 Sistema SCADA - Monitoreo y Resaltado de Zonas")
+st.title("🚊 Monitoreo de Zonas")
 
 # --- CARGA AUTOMÁTICA DEL ARCHIVO JSON DESDE GITHUB ---
 JSON_LOCAL = "zonas.json"
