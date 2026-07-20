@@ -15,8 +15,17 @@ st.set_page_config(
 st.title("🚊 Sistema SCADA - Monitoreo y Resaltado de Zonas")
 
 
+# --- CONVERSIÓN DE HEX A BGR ---
+def hex_a_bgr(hex_color):
+  hex_color = hex_color.lstrip('#')
+  r = int(hex_color[0:2], 16)
+  g = int(hex_color[2:4], 16)
+  b = int(hex_color[4:6], 16)
+  return (b, g, r)
+
+
 # --- FUNCIONES DE DIBUJO ---
-def dibujar_zona(img_base, zona):
+def dibujar_zona(img_base, zona, color_bgr, grosor, alpha):
   overlay = img_base.copy()
 
   # 1. Dibujar líneas del tramo
@@ -25,8 +34,8 @@ def dibujar_zona(img_base, zona):
         overlay,
         (int(lin["x_inicio"]), int(lin["y_inicio"])),
         (int(lin["x_fin"]), int(lin["y_fin"])),
-        (255, 255, 0),
-        6,
+        color_bgr,
+        grosor,
     )
 
   # 2. Corchete Izquierdo [
@@ -36,22 +45,22 @@ def dibujar_zona(img_base, zona):
         overlay,
         (int(c_i["x"]), int(c_i["y1"])),
         (int(c_i["x"]), int(c_i["y2"])),
-        (0, 255, 255),
-        5,
+        color_bgr,
+        max(3, grosor - 1),
     )
     cv2.line(
         overlay,
         (int(c_i["x"]), int(c_i["y1"])),
         (int(c_i["x"]) + 25, int(c_i["y1"])),
-        (0, 255, 255),
-        5,
+        color_bgr,
+        max(3, grosor - 1),
     )
     cv2.line(
         overlay,
         (int(c_i["x"]), int(c_i["y2"])),
         (int(c_i["x"]) + 25, int(c_i["y2"])),
-        (0, 255, 255),
-        5,
+        color_bgr,
+        max(3, grosor - 1),
     )
 
   # 3. Corchete Derecho ]
@@ -61,31 +70,31 @@ def dibujar_zona(img_base, zona):
         overlay,
         (int(c_d["x"]), int(c_d["y1"])),
         (int(c_d["x"]), int(c_d["y2"])),
-        (0, 255, 255),
-        5,
+        color_bgr,
+        max(3, grosor - 1),
     )
     cv2.line(
         overlay,
         (int(c_d["x"]), int(c_d["y1"])),
         (int(c_d["x"]) - 25, int(c_d["y1"])),
-        (0, 255, 255),
-        5,
+        color_bgr,
+        max(3, grosor - 1),
     )
     cv2.line(
         overlay,
         (int(c_d["x"]), int(c_d["y2"])),
         (int(c_d["x"]) - 25, int(c_d["y2"])),
-        (0, 255, 255),
-        5,
+        color_bgr,
+        max(3, grosor - 1),
     )
 
-  # Resplandor/Mezcla
-  return cv2.addWeighted(overlay, 0.85, img_base, 0.15, 0)
+  # Mezcla de transparencia según la opacidad seleccionada
+  beta = 1.0 - alpha
+  return cv2.addWeighted(overlay, alpha, img_base, beta, 0)
 
 
 # --- RENDERIZADOR HTML/JS DE ALTA RESOLUCIÓN Y PANTALLA COMPLETA ---
 def mostrar_visor_hd(img_bgr, height=650):
-  # Convertir BGR a PNG binario codificado en Base64 para cero pérdida
   _, buffer = cv2.imencode(".png", img_bgr)
   img_base64 = base64.b64encode(buffer).decode("utf-8")
 
@@ -163,6 +172,20 @@ else:
 
 st.sidebar.divider()
 
+# --- CONFIGURACIÓN DE ESTILO DE LÍNEA ---
+st.sidebar.header("🎨 Personalización de Estilo")
+hex_color_sel = st.sidebar.color_picker(
+    "Color del Resaltado", value="#FFFF00"
+)  # Amarillo neón por defecto
+grosor_sel = st.sidebar.slider("Grosor de Línea (px)", 1, 15, 6)
+opacidad_sel = (
+    st.sidebar.slider("Opacidad (%)", 10, 100, 85) / 100.0
+)  # Convierte a escala 0.10 - 1.0
+
+color_bgr_sel = hex_a_bgr(hex_color_sel)
+
+st.sidebar.divider()
+
 # --- MODO DE TRABAJO ---
 modo = st.sidebar.radio(
     "Modo de Trabajo:", ["Visor / Monitoreo", "Mapeador / Crear Zonas"]
@@ -202,11 +225,12 @@ if uploaded_image is not None:
             for z in st.session_state.zonas
             if str(z["id"]) == zona_seleccionada_id
         )
-        img_final = dibujar_zona(img_original, zona_obj)
+        img_final = dibujar_zona(
+            img_original, zona_obj, color_bgr_sel, grosor_sel, opacidad_sel
+        )
       else:
         img_final = img_original.copy()
 
-      # Cargar Visor Interactivo Profesional
       mostrar_visor_hd(img_final, height=650)
 
   # ----------------------------------------------------
@@ -266,7 +290,9 @@ if uploaded_image is not None:
     with col_preview:
       img_temp = img_original.copy()
       for z in st.session_state.zonas:
-        img_temp = dibujar_zona(img_temp, z)
+        img_temp = dibujar_zona(
+            img_temp, z, color_bgr_sel, grosor_sel, opacidad_sel
+        )
 
       mostrar_visor_hd(img_temp, height=500)
 
