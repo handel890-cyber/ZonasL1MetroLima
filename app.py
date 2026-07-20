@@ -26,24 +26,6 @@ if "zonas" not in st.session_state:
     except Exception as e:
       st.error(f"Error al leer el archivo {JSON_LOCAL} desde GitHub.")
 
-# --- FUNCIÓN PARA CALIBRAR EL EJE Y EN EL JSON ---
-def calibrar_eje_y(zona_id, pixeles_delta):
-    for z in st.session_state.zonas:
-        if str(z["id"]) == str(zona_id):
-            # Mover tramos de línea
-            for lin in z.get("lineas", []):
-                lin["y_inicio"] += pixeles_delta
-                lin["y_fin"] += pixeles_delta
-            # Mover corchete izquierdo
-            if "corchete_izq" in z and z["corchete_izq"]:
-                z["corchete_izq"]["y1"] += pixeles_delta
-                z["corchete_izq"]["y2"] += pixeles_delta
-            # Mover corchete derecho
-            if "corchete_der" in z and z["corchete_der"]:
-                z["corchete_der"]["y1"] += pixeles_delta
-                z["corchete_der"]["y2"] += pixeles_delta
-            break
-
 # --- PANEL LATERAL (SIDEBAR) ---
 st.sidebar.header("📁 Gestión de Archivos")
 
@@ -55,40 +37,16 @@ uploaded_image = st.sidebar.file_uploader(
 # Estado del JSON de GitHub
 if st.session_state.zonas:
   st.sidebar.success(f"✅ `zonas.json` cargado con {len(st.session_state.zonas)} zonas.")
-  
-  # Botón de descarga
-  json_data = json.dumps(st.session_state.zonas, indent=2)
-  st.sidebar.download_button(
-      label="💾 Descargar zonas.json actual",
-      data=json_data,
-      file_name="zonas.json",
-      mime="application/json",
-  )
+  st.sidebar.info("💡 Utiliza el panel flotante inferior izquierdo en la imagen para calibrar y descargar el JSON.")
 else:
   st.sidebar.info("ℹ️ No se detectó `zonas.json` en GitHub.")
 
 st.sidebar.divider()
 
-# --- NUEVO: CALIBRADOR FÍSICO DE COORDENADAS ---
-st.sidebar.header("📐 Calibración Fina (Eje Y)")
-st.sidebar.caption("Corrige desalineaciones de píxeles permanentemente en el JSON.")
-
-if st.session_state.zonas:
-    ids_calibrar = ["Ninguna"] + [str(z["id"]) for z in st.session_state.zonas]
-    zona_cal = st.sidebar.selectbox("Seleccione zona a corregir:", options=ids_calibrar)
-    
-    if zona_cal != "Ninguna":
-        col_up, col_down = st.sidebar.columns(2)
-        # Streamlit lee el código de arriba a abajo, si se hace clic, actualiza la variable antes de dibujar el visor
-        if col_up.button("⬆️ Subir (-1px)"):
-            calibrar_eje_y(zona_cal, -1)
-        if col_down.button("⬇️ Bajar (+1px)"):
-            calibrar_eje_y(zona_cal, 1)
-
-st.sidebar.divider()
-
 # --- MODO DE TRABAJO ---
-modo = st.sidebar.radio("Modo de Trabajo:", ["Visor / Monitoreo", "Mapeador / Crear Zonas"])
+modo = st.sidebar.radio(
+    "Modo de Trabajo:", ["Visor / Monitoreo", "Mapeador / Crear Zonas"]
+)
 
 # --- VISOR INTERACTIVO "TODO EN UNO" (HTML5/JS NATIVO) ---
 def mostrar_visor_vectorial(img_bgr, lista_zonas, mostrar_selector=True, height=650):
@@ -103,8 +61,12 @@ def mostrar_visor_vectorial(img_bgr, lista_zonas, mostrar_selector=True, height=
         <script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/openseadragon.min.js"></script>
         <style>
             #scada-container {{
-                width: 100%; height: {height}px; background-color: #0e1117;
-                border: 1px solid #30363d; border-radius: 8px; position: relative;
+                width: 100%;
+                height: {height}px;
+                background-color: #0e1117;
+                border: 1px solid #30363d;
+                border-radius: 8px;
+                position: relative;
             }}
             
             /* Panel Superior Derecho (Estilo) */
@@ -143,11 +105,34 @@ def mostrar_visor_vectorial(img_bgr, lista_zonas, mostrar_selector=True, height=
                 background-color: #0d1117; color: #c9d1d9; border: 1px solid #30363d;
                 padding: 5px 10px; border-radius: 4px; font-size: 14px; outline: none; cursor: pointer;
             }}
-            #zoneSelect:focus {{ border-color: #58a6ff; }}
+
+            /* NUEVO: Panel Inferior Izquierdo (Calibración Y + Descarga) */
+            #calibration-panel {{
+                position: absolute; bottom: 15px; left: 15px; z-index: 1000;
+                background-color: rgba(22, 27, 34, 0.90); padding: 12px 15px;
+                border-radius: 8px; border: 1px solid #2ea043; color: #ffffff;
+                font-family: sans-serif; font-size: 13px; backdrop-filter: blur(4px);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.5); display: flex;
+                flex-direction: column; gap: 8px; width: 180px;
+            }}
+            .cal-btn {{
+                background-color: #21262d; border: 1px solid #30363d; color: #c9d1d9;
+                padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 13px;
+                transition: background-color 0.2s; text-align: center; width: 100%;
+            }}
+            .cal-btn:hover {{ background-color: #30363d; border-color: #8b949e; }}
+            .download-btn {{
+                background-color: #238636; border: 1px solid rgba(240,246,252,0.1); color: #ffffff;
+                padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;
+                transition: background-color 0.2s; text-align: center; width: 100%; margin-top: 5px;
+            }}
+            .download-btn:hover {{ background-color: #2ea043; }}
         </style>
     </head>
     <body style="margin: 0; background-color: #0e1117;">
+        
         <div id="scada-container">
+            
             <!-- Panel Superior Derecho: Controles Visuales -->
             <div id="floating-controls">
                 <div id="controls-header">
@@ -177,9 +162,23 @@ def mostrar_visor_vectorial(img_bgr, lista_zonas, mostrar_selector=True, height=
                     <option value="Ninguna">Ninguna</option>
                 </select>
             </div>
+
+            <!-- NUEVO Panel Inferior Izquierdo: Calibración y Descarga -->
+            <div id="calibration-panel">
+                <div style="font-weight: bold; text-align: center; border-bottom: 1px solid #444c56; padding-bottom: 5px;">
+                    📐 Calibración Eje Y
+                </div>
+                <div style="display: flex; gap: 5px; margin-top: 5px;">
+                    <button class="cal-btn" onclick="calibrarY(-1)">⬆️ Subir</button>
+                    <button class="cal-btn" onclick="calibrarY(1)">⬇️ Bajar</button>
+                </div>
+                <button class="download-btn" onclick="descargarJSONLocal()">💾 Descargar JSON</button>
+            </div>
+
         </div>
 
         <script>
+            // Minimizar/Expandir Panel Superior
             function toggleControls() {{
                 var body = document.getElementById("controls-body");
                 var btn = document.getElementById("toggle-btn");
@@ -197,13 +196,12 @@ def mostrar_visor_vectorial(img_bgr, lista_zonas, mostrar_selector=True, height=
             var mostrarSelector = {'true' if mostrar_selector else 'false'};
             var zonaActual = null;
 
-            // En modo mapeo, enfocar la última zona creada automáticamente
-            if (mostrarSelector === false && todasLasZonas.length > 0) {{
+            if (!mostrarSelector && todasLasZonas.length > 0) {{
                 zonaActual = todasLasZonas[todasLasZonas.length - 1]; 
             }}
 
             var zoneSelect = document.getElementById('zoneSelect');
-            if (mostrarSelector === true && zoneSelect) {{
+            if (mostrarSelector && zoneSelect) {{
                 todasLasZonas.forEach(function(z) {{
                     var opt = document.createElement('option');
                     opt.value = z.id;
@@ -259,17 +257,57 @@ def mostrar_visor_vectorial(img_bgr, lista_zonas, mostrar_selector=True, height=
                         ctx.lineTo(lin.x_fin, lin.y_fin); ctx.stroke();
                     }});
                 }}
+
                 if (zonaActual.corchete_izq) {{
                     let c = zonaActual.corchete_izq;
                     ctx.beginPath(); ctx.moveTo(c.x + 25, c.y1); ctx.lineTo(c.x, c.y1);
                     ctx.lineTo(c.x, c.y2); ctx.lineTo(c.x + 25, c.y2); ctx.stroke();
                 }}
+
                 if (zonaActual.corchete_der) {{
                     let c = zonaActual.corchete_der;
                     ctx.beginPath(); ctx.moveTo(c.x - 25, c.y1); ctx.lineTo(c.x, c.y1);
                     ctx.lineTo(c.x, c.y2); ctx.lineTo(c.x - 25, c.y2); ctx.stroke();
                 }}
             }}
+
+            // --- FUNCIONES NUEVAS: CALIBRACIÓN Y DESCARGA JS ---
+            function calibrarY(pixeles) {{
+                if (!zonaActual) {{
+                    alert("Por favor, selecciona una zona en el panel inferior derecho primero.");
+                    return;
+                }}
+
+                if (zonaActual.lineas) {{
+                    zonaActual.lineas.forEach(lin => {{
+                        lin.y_inicio += pixeles;
+                        lin.y_fin += pixeles;
+                    }});
+                }}
+                if (zonaActual.corchete_izq) {{
+                    zonaActual.corchete_izq.y1 += pixeles;
+                    zonaActual.corchete_izq.y2 += pixeles;
+                }}
+                if (zonaActual.corchete_der) {{
+                    zonaActual.corchete_der.y1 += pixeles;
+                    zonaActual.corchete_der.y2 += pixeles;
+                }}
+                
+                // Redibujar instantáneamente sin recargar la página
+                redibujarOverlay();
+            }}
+
+            function descargarJSONLocal() {{
+                // Generar el archivo JSON en base a los datos actuales de Javascript
+                var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(todasLasZonas, null, 2));
+                var dlAnchorElem = document.createElement('a');
+                dlAnchorElem.setAttribute("href", dataStr);
+                dlAnchorElem.setAttribute("download", "zonas_calibradas.json");
+                document.body.appendChild(dlAnchorElem);
+                dlAnchorElem.click();
+                dlAnchorElem.remove();
+            }}
+            // ---------------------------------------------------
 
             function centrarEnZona(z) {{
                 if (!z || !z.lineas || z.lineas.length === 0) return;
@@ -315,9 +353,9 @@ def mostrar_visor_vectorial(img_bgr, lista_zonas, mostrar_selector=True, height=
                 redibujarOverlay();
 
                 var storage = window.parent.localStorage;
-                var savedZoom = storage.getItem('scada_zoom_v7');
-                var savedX = storage.getItem('scada_x_v7');
-                var savedY = storage.getItem('scada_y_v7');
+                var savedZoom = storage.getItem('scada_zoom_v8');
+                var savedX = storage.getItem('scada_x_v8');
+                var savedY = storage.getItem('scada_y_v8');
 
                 if (savedZoom && savedX && savedY) {{
                     viewer.viewport.zoomTo(parseFloat(savedZoom), null, true);
@@ -328,10 +366,10 @@ def mostrar_visor_vectorial(img_bgr, lista_zonas, mostrar_selector=True, height=
             function guardarPosicion() {{
                 if (viewer && viewer.viewport) {{
                     var storage = window.parent.localStorage;
-                    storage.setItem('scada_zoom_v7', viewer.viewport.getZoom());
+                    storage.setItem('scada_zoom_v8', viewer.viewport.getZoom());
                     var center = viewer.viewport.getCenter();
-                    storage.setItem('scada_x_v7', center.x);
-                    storage.setItem('scada_y_v7', center.y);
+                    storage.setItem('scada_x_v8', center.x);
+                    storage.setItem('scada_y_v8', center.y);
                 }}
             }}
 
