@@ -44,24 +44,14 @@ else:
 
 st.sidebar.divider()
 
-# --- CONFIGURACIÓN DE ESTILO EN TIEMPO REAL ---
-st.sidebar.header("🎨 Personalización de Estilo")
-hex_color_sel = st.sidebar.color_picker("Color del Resaltado", value="#FFFF00")
-grosor_sel = st.sidebar.slider("Grosor de Línea (px)", 1, 20, 6)
-opacidad_sel = st.sidebar.slider("Opacidad (%)", 10, 100, 85) / 100.0
-
-st.sidebar.divider()
-
 # --- MODO DE TRABAJO ---
 modo = st.sidebar.radio(
     "Modo de Trabajo:", ["Visor / Monitoreo", "Mapeador / Crear Zonas"]
 )
 
 
-# --- VISOR INTERACTIVO CON RENDERIZADO VECTORIAL EN CLIENTE (FLUIDO) ---
-def mostrar_visor_vectorial(
-    img_bgr, zona_data, color_hex, grosor, opacidad, height=650
-):
+# --- VISOR INTERACTIVO CON CONTROLES NATIVOS EN JAVASCRIPT ---
+def mostrar_visor_vectorial(img_bgr, zona_data, height=650):
   _, buffer = cv2.imencode(".png", img_bgr)
   img_base64 = base64.b64encode(buffer).decode("utf-8")
   zona_json_str = json.dumps(zona_data) if zona_data else "null"
@@ -80,16 +70,66 @@ def mostrar_visor_vectorial(
                 border-radius: 8px;
                 position: relative;
             }}
+            /* Estilo del panel flotante de personalización */
+            #floating-controls {{
+                position: absolute;
+                top: 15px;
+                left: 15px;
+                z-index: 1000;
+                background-color: rgba(22, 27, 34, 0.85);
+                padding: 15px;
+                border-radius: 8px;
+                border: 1px solid #444c56;
+                color: #c9d1d9;
+                font-family: sans-serif;
+                font-size: 13px;
+                backdrop-filter: blur(4px);
+            }}
+            .control-group {{
+                margin-bottom: 10px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                width: 220px;
+            }}
+            input[type="range"] {{ width: 100px; }}
+            input[type="color"] {{ cursor: pointer; border: none; background: none; width: 30px; height: 30px; }}
         </style>
     </head>
     <body style="margin: 0; background-color: #0e1117;">
-        <div id="scada-container"></div>
+        
+        <div id="scada-container">
+            <!-- Panel Flotante de Controles Visuales (Oculto a Streamlit) -->
+            <div id="floating-controls">
+                <div style="font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #444c56; padding-bottom: 5px;">🎨 Personalización Rápida</div>
+                
+                <div class="control-group">
+                    <label for="colorPicker">Color de Línea:</label>
+                    <input type="color" id="colorPicker" value="#FFFF00">
+                </div>
+                
+                <div class="control-group">
+                    <label for="grosorSlider">Grosor (<span id="grosorVal">6</span>px):</label>
+                    <input type="range" id="grosorSlider" min="1" max="25" value="6">
+                </div>
+                
+                <div class="control-group">
+                    <label for="opacidadSlider">Opacidad (<span id="opacidadVal">85</span>%):</label>
+                    <input type="range" id="opacidadSlider" min="0.1" max="1.0" step="0.05" value="0.85">
+                </div>
+            </div>
+        </div>
 
         <script>
             var zona = {zona_json_str};
-            var color = "{color_hex}";
-            var grosor = {grosor};
-            var opacidad = {opacidad};
+            
+            // Referencias a los controles HTML
+            var inputColor = document.getElementById('colorPicker');
+            var inputGrosor = document.getElementById('grosorSlider');
+            var inputOpacidad = document.getElementById('opacidadSlider');
+            
+            var textGrosor = document.getElementById('grosorVal');
+            var textOpacidad = document.getElementById('opacidadVal');
 
             var viewer = OpenSeadragon({{
                 id: "scada-container",
@@ -109,19 +149,24 @@ def mostrar_visor_vectorial(
 
             var overlayCanvas = null;
 
+            // Función para dibujar los gráficos sin recargar nada
             function redibujarOverlay() {{
                 if (!overlayCanvas || !zona) return;
                 var ctx = overlayCanvas.getContext('2d');
                 var imgWidth = viewer.world.getItemAt(0).getContentSize().x;
                 var imgHeight = viewer.world.getItemAt(0).getContentSize().y;
 
+                // Actualizar etiquetas de texto
+                textGrosor.innerText = inputGrosor.value;
+                textOpacidad.innerText = Math.round(inputOpacidad.value * 100);
+
                 overlayCanvas.width = imgWidth;
                 overlayCanvas.height = imgHeight;
 
                 ctx.clearRect(0, 0, imgWidth, imgHeight);
-                ctx.strokeStyle = color;
-                ctx.lineWidth = grosor;
-                ctx.globalAlpha = opacidad;
+                ctx.strokeStyle = inputColor.value;
+                ctx.lineWidth = parseInt(inputGrosor.value);
+                ctx.globalAlpha = parseFloat(inputOpacidad.value);
                 ctx.lineCap = "round";
 
                 // 1. Lineas principales
@@ -157,6 +202,11 @@ def mostrar_visor_vectorial(
                 }}
             }}
 
+            // Event Listeners: Cada vez que mueves un control, se redibuja en vivo
+            inputColor.addEventListener('input', redibujarOverlay);
+            inputGrosor.addEventListener('input', redibujarOverlay);
+            inputOpacidad.addEventListener('input', redibujarOverlay);
+
             viewer.addHandler('open', function() {{
                 overlayCanvas = document.createElement('canvas');
                 var imgSize = viewer.world.getItemAt(0).getContentSize();
@@ -170,11 +220,11 @@ def mostrar_visor_vectorial(
 
                 redibujarOverlay();
 
-                // Restaurar zoom y posición
+                // Restaurar zoom solo al cargar el mapa entero
                 var storage = window.parent.localStorage;
-                var savedZoom = storage.getItem('scada_zoom_v3');
-                var savedX = storage.getItem('scada_x_v3');
-                var savedY = storage.getItem('scada_y_v3');
+                var savedZoom = storage.getItem('scada_zoom_v4');
+                var savedX = storage.getItem('scada_x_v4');
+                var savedY = storage.getItem('scada_y_v4');
 
                 if (savedZoom && savedX && savedY) {{
                     viewer.viewport.zoomTo(parseFloat(savedZoom), null, true);
@@ -185,10 +235,10 @@ def mostrar_visor_vectorial(
             function guardarPosicion() {{
                 if (viewer && viewer.viewport) {{
                     var storage = window.parent.localStorage;
-                    storage.setItem('scada_zoom_v3', viewer.viewport.getZoom());
+                    storage.setItem('scada_zoom_v4', viewer.viewport.getZoom());
                     var center = viewer.viewport.getCenter();
-                    storage.setItem('scada_x_v3', center.x);
-                    storage.setItem('scada_y_v3', center.y);
+                    storage.setItem('scada_x_v4', center.x);
+                    storage.setItem('scada_y_v4', center.y);
                 }}
             }}
 
@@ -237,14 +287,7 @@ if uploaded_image is not None:
             if str(z["id"]) == zona_seleccionada_id
         )
 
-      mostrar_visor_vectorial(
-          img_original,
-          zona_obj,
-          hex_color_sel,
-          grosor_sel,
-          opacidad_sel,
-          height=650,
-      )
+      mostrar_visor_vectorial(img_original, zona_obj, height=650)
 
   # ----------------------------------------------------
   # MODO 2: MAPEADOR / CREAR ZONAS
@@ -305,14 +348,7 @@ if uploaded_image is not None:
       zona_preview = (
           st.session_state.zonas[-1] if st.session_state.zonas else None
       )
-      mostrar_visor_vectorial(
-          img_original,
-          zona_preview,
-          hex_color_sel,
-          grosor_sel,
-          opacidad_sel,
-          height=500,
-      )
+      mostrar_visor_vectorial(img_original, zona_preview, height=500)
 
 else:
   st.warning(
