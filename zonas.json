@@ -45,14 +45,14 @@
     "id": "208",
     "lineas": [
       {
-        "x_inicio": 3349,
+        "x_inicio": 2155,
         "y_inicio": 305,
         "x_fin": 3349,
         "y_fin": 305
       }
     ],
     "corchete_izq": {
-      "x": 3349,
+      "x": 2155,
       "y1": 315,
       "y2": 295
     },
@@ -66,14 +66,14 @@
     "id": "207",
     "lineas": [
       {
-        "x_inicio": 3349,
+        "x_inicio": 2155,
         "y_inicio": 258,
         "x_fin": 3349,
         "y_fin": 258
       }
     ],
     "corchete_izq": {
-      "x": 3349,
+      "x": 2155,
       "y1": 268,
       "y2": 248
     },
