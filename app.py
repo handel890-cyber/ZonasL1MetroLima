@@ -1,4 +1,5 @@
 import json
+import os
 import cv2
 import numpy as np
 import streamlit as st
@@ -25,8 +26,8 @@ def dibujar_zona(img_base, zona):
   for lin in zona.get("lineas", []):
     cv2.line(
         overlay,
-        (lin["x_inicio"], lin["y_inicio"]),
-        (lin["x_fin"], lin["y_fin"]),
+        (int(lin["x_inicio"]), int(lin["y_inicio"])),
+        (int(lin["x_fin"]), int(lin["y_fin"])),
         (255, 255, 0),
         6,
     )
@@ -35,19 +36,23 @@ def dibujar_zona(img_base, zona):
   c_i = zona.get("corchete_izq", {})
   if c_i:
     cv2.line(
-        overlay, (c_i["x"], c_i["y1"]), (c_i["x"], c_i["y2"]), (0, 255, 255), 5
-    )
-    cv2.line(
         overlay,
-        (c_i["x"], c_i["y1"]),
-        (c_i["x"] + 25, c_i["y1"]),
+        (int(c_i["x"]), int(c_i["y1"])),
+        (int(c_i["x"]), int(c_i["y2"])),
         (0, 255, 255),
         5,
     )
     cv2.line(
         overlay,
-        (c_i["x"], c_i["y2"]),
-        (c_i["x"] + 25, c_i["y2"]),
+        (int(c_i["x"]), int(c_i["y1"])),
+        (int(c_i["x"]) + 25, int(c_i["y1"])),
+        (0, 255, 255),
+        5,
+    )
+    cv2.line(
+        overlay,
+        (int(c_i["x"]), int(c_i["y2"])),
+        (int(c_i["x"]) + 25, int(c_i["y2"])),
         (0, 255, 255),
         5,
     )
@@ -56,19 +61,23 @@ def dibujar_zona(img_base, zona):
   c_d = zona.get("corchete_der", {})
   if c_d:
     cv2.line(
-        overlay, (c_d["x"], c_d["y1"]), (c_d["x"], c_d["y2"]), (0, 255, 255), 5
-    )
-    cv2.line(
         overlay,
-        (c_d["x"], c_d["y1"]),
-        (c_d["x"] - 25, c_d["y1"]),
+        (int(c_d["x"]), int(c_d["y1"])),
+        (int(c_d["x"]), int(c_d["y2"])),
         (0, 255, 255),
         5,
     )
     cv2.line(
         overlay,
-        (c_d["x"], c_d["y2"]),
-        (c_d["x"] - 25, c_d["y2"]),
+        (int(c_d["x"]), int(c_d["y1"])),
+        (int(c_d["x"]) - 25, int(c_d["y1"])),
+        (0, 255, 255),
+        5,
+    )
+    cv2.line(
+        overlay,
+        (int(c_d["x"]), int(c_d["y2"])),
+        (int(c_d["x"]) - 25, int(c_d["y2"])),
         (0, 255, 255),
         5,
     )
@@ -77,9 +86,18 @@ def dibujar_zona(img_base, zona):
   return cv2.addWeighted(overlay, 0.85, img_base, 0.15, 0)
 
 
-# --- ESTADO DE SESIÓN (SESSION STATE) ---
+# --- CARGA AUTOMÁTICA DEL ARCHIVO JSON DESDE GITHUB ---
+JSON_LOCAL = "zonas.json"
+
 if "zonas" not in st.session_state:
   st.session_state.zonas = []
+  # Intentar cargar zonas.json automáticamente si está subido al repositorio
+  if os.path.exists(JSON_LOCAL):
+    try:
+      with open(JSON_LOCAL, "r", encoding="utf-8") as f:
+        st.session_state.zonas = json.load(f)
+    except Exception as e:
+      st.error(f"Error al leer el archivo {JSON_LOCAL} desde GitHub.")
 
 # --- PANEL LATERAL (SIDEBAR) ---
 st.sidebar.header("📁 Carga de Archivos")
@@ -89,27 +107,35 @@ uploaded_image = st.sidebar.file_uploader(
     "1. Subir Imagen SCADA", type=["jpg", "png", "jpeg"]
 )
 
-# Cargar JSON de Zonas
+# Estado del JSON
+if st.session_state.zonas:
+  st.sidebar.success(
+      f"✅ `zonas.json` cargado con {len(st.session_state.zonas)} zonas."
+  )
+else:
+  st.sidebar.info("ℹ️ No se detectó `zonas.json` o está vacío.")
+
+# Cargar JSON alternativo por UI si se requiere
 uploaded_json = st.sidebar.file_uploader(
-    "2. Cargar Archivo Zonas (.json)", type=["json"]
+    "Reemplazar zonas.json (Opcional)", type=["json"]
 )
 if uploaded_json is not None:
   try:
     st.session_state.zonas = json.load(uploaded_json)
-    st.sidebar.success(
-        f"Se cargaron {len(st.session_state.zonas)} zonas con éxito."
-    )
+    st.sidebar.success("Zonas actualizadas desde archivo manual.")
   except Exception as e:
-    st.sidebar.error("Error al leer el archivo JSON.")
+    st.sidebar.error("Error al leer el archivo JSON subido.")
 
 st.sidebar.divider()
 
 # --- MODO DE TRABAJO ---
-modo = st.sidebar.radio("Modo de Trabajo:", ["Visor / Monitoreo", "Mapeador / Crear Zonas"])
+modo = st.sidebar.radio(
+    "Modo de Trabajo:", ["Visor / Monitoreo", "Mapeador / Crear Zonas"]
+)
 
 if uploaded_image is not None:
-  # Convertir archivo cargado a formato OpenCV (BGR)
-  file_bytes = np.asarray(bytearray(uploaded_image.read()), dtype=uint8)
+  # CORRECCIÓN DE ERROR: Usar np.uint8
+  file_bytes = np.asarray(bytearray(uploaded_image.read()), dtype=np.uint8)
   img_original = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
   # ----------------------------------------------------
@@ -120,7 +146,7 @@ if uploaded_image is not None:
 
     with col_ctrl:
       st.subheader("Buscador de Zonas")
-      ids_zonas = [z["id"] for z in st.session_state.zonas]
+      ids_zonas = [str(z["id"]) for z in st.session_state.zonas]
 
       zona_seleccionada_id = st.selectbox(
           "Seleccione una zona a resaltar:",
@@ -131,7 +157,7 @@ if uploaded_image is not None:
       if st.session_state.zonas:
         json_data = json.dumps(st.session_state.zonas, indent=2)
         st.download_button(
-            label="💾 Exportar zonas.json",
+            label="💾 Descargar zonas.json actual",
             data=json_data,
             file_name="zonas.json",
             mime="application/json",
@@ -140,10 +166,11 @@ if uploaded_image is not None:
     with col_view:
       if zona_seleccionada_id != "Ninguna":
         zona_obj = next(
-            z for z in st.session_state.zonas if z["id"] == zona_seleccionada_id
+            z
+            for z in st.session_state.zonas
+            if str(z["id"]) == zona_seleccionada_id
         )
         img_resaltada = dibujar_zona(img_original, zona_obj)
-        # Convertir BGR a RGB para mostrar en Streamlit
         st.image(
             cv2.cvtColor(img_resaltada, cv2.COLOR_BGR2RGB),
             caption=f"Visualizando Zona {zona_seleccionada_id}",
@@ -162,8 +189,7 @@ if uploaded_image is not None:
   else:
     st.subheader("🛠️ Creador de Zonas (Ingreso Manual de Puntos)")
     st.info(
-        "Ingrese el ID de la zona y los pares de coordenadas para las líneas"
-        " superiores/inferiores."
+        "Ingrese el ID de la zona y los pares de coordenadas para los tramos."
     )
 
     col_form, col_preview = st.columns([1, 2])
@@ -216,7 +242,6 @@ if uploaded_image is not None:
           st.error("Por favor ingrese un ID válido.")
 
     with col_preview:
-      # Mostrar la imagen con las zonas acumuladas
       img_temp = img_original.copy()
       for z in st.session_state.zonas:
         img_temp = dibujar_zona(img_temp, z)
