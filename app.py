@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import cv2
@@ -82,6 +83,56 @@ def dibujar_zona(img_base, zona):
   return cv2.addWeighted(overlay, 0.85, img_base, 0.15, 0)
 
 
+# --- RENDERIZADOR HTML/JS DE ALTA RESOLUCIÓN Y PANTALLA COMPLETA ---
+def mostrar_visor_hd(img_bgr, height=650):
+  # Convertir BGR a PNG binario codificado en Base64 para cero pérdida
+  _, buffer = cv2.imencode(".png", img_bgr)
+  img_base64 = base64.b64encode(buffer).decode("utf-8")
+
+  html_code = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/openseadragon.min.js"></script>
+        <style>
+            #scada-container {{
+                width: 100%;
+                height: {height}px;
+                background-color: #0e1117;
+                border: 1px solid #30363d;
+                border-radius: 8px;
+            }}
+        </style>
+    </head>
+    <body style="margin: 0; background-color: #0e1117;">
+        <div id="scada-container"></div>
+        <script>
+            var viewer = OpenSeadragon({{
+                id: "scada-container",
+                prefixUrl: "https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/images/",
+                tileSources: {{
+                    type: 'image',
+                    url: 'data:image/png;base64,{img_base64}'
+                }},
+                showNavigationControl: true,
+                showFullScreenControl: true,
+                showZoomControl: true,
+                showHomeControl: true,
+                gestureSettingsMouse: {{
+                    clickToZoom: false,
+                    dblClickToZoom: true,
+                    scrollToZoom: true
+                }},
+                maxZoomPixelRatio: 4,
+                minZoomLevel: 0.8
+            }});
+        </script>
+    </body>
+    </html>
+    """
+  st.components.v1.html(html_code, height=height + 10)
+
+
 # --- CARGA AUTOMÁTICA DEL ARCHIVO JSON DESDE GITHUB ---
 JSON_LOCAL = "zonas.json"
 
@@ -155,15 +206,8 @@ if uploaded_image is not None:
       else:
         img_final = img_original.copy()
 
-      img_rgb = cv2.cvtColor(img_final, cv2.COLOR_BGR2RGB)
-
-      # Muestra la imagen preservando píxeles reales.
-      # Pasa el cursor sobre la imagen y presiona el ícono '🔍 Ampliar' (Fullscreen)
-      st.image(img_rgb, use_container_width=True)
-
-      # Opción adicional: expandir a contenedor de ancho completo
-      with st.expander("🔎 Ver imagen en calidad nativa / Zoom extra"):
-        st.image(img_rgb, output_format="PNG")
+      # Cargar Visor Interactivo Profesional
+      mostrar_visor_hd(img_final, height=650)
 
   # ----------------------------------------------------
   # MODO 2: MAPEADOR / CREAR ZONAS
@@ -224,8 +268,7 @@ if uploaded_image is not None:
       for z in st.session_state.zonas:
         img_temp = dibujar_zona(img_temp, z)
 
-      img_rgb_preview = cv2.cvtColor(img_temp, cv2.COLOR_BGR2RGB)
-      st.image(img_rgb_preview, use_container_width=True)
+      mostrar_visor_hd(img_temp, height=500)
 
 else:
   st.warning(
