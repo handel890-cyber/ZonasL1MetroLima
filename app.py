@@ -31,7 +31,7 @@ st.sidebar.header("📁 Gestión de Archivos")
 
 # Cargar Imagen Base
 uploaded_image = st.sidebar.file_uploader(
-    "1. Subir Imagen SCADA", type=["jpg", "png", "jpeg"]
+    "1. Subir Imagen SCADA", type=["jpg", "png", "jpeg", "bmp"]
 )
 
 # Estado del JSON de GitHub
